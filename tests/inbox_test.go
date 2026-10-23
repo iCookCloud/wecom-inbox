@@ -612,3 +612,48 @@ func TestReviewBackupRejectsChangedArchivedBytes(t *testing.T) {
 		t.Fatalf("backup/restore succeeded with changed bytes: data=%q catalogHash=%s", data, got.SHA256)
 	}
 }
+
+func TestColdTornManifestBlocksFollowingMessages(t *testing.T) {
+	s := store(t)
+	in := input("torn", "bot-a", "")
+	in.Media = []inbox.MediaSource{{Name: "source.txt", Kind: "file", URL: "https://example.com/source"}}
+	id := put(t, s, in)
+	a := message(t, s, id).Attachments[0]
+	if e := os.MkdirAll(filepath.Join(s.Dir, "files"), 0700); e != nil {
+		t.Fatal(e)
+	}
+	// 模拟进程在创建恢复清单后、完整写入前中断。
+	if e := os.WriteFile(filepath.Join(s.Dir, "files", a.ID+".blob.manifest.json"), []byte("{"), 0600); e != nil {
+		t.Fatal(e)
+	}
+	second := put(t, s, input("following", "bot-a", "must archive"))
+	ing := inbox.Ingestor{Store: s, Config: config}
+	for n := 0; n < 3; n++ {
+		_, e := ing.ProcessOne(ctx)
+		t.Logf("attempt %d: %v", n, e)
+	}
+	if got := message(t, s, second).Status; got != "ready" {
+		t.Fatalf("later text message remains %q after repeated processing", got)
+	}
+}
+func TestColdMissingFileURLCannotReportArchived(t *testing.T) {
+	s := store(t)
+	c := config()
+	c.Bots[0].Receipt = true
+	ing := inbox.Ingestor{Store: s, Config: func() inbox.Config { return c }}
+	body := []byte(`{"msgid":"file-no-url","chattype":"single","from":{"userid":"user-a"},"msgtype":"file","file":{"name":"contract.pdf"}}`)
+	id, _, e := ing.Accept(ctx, "bot-a", "request", body)
+	if e != nil {
+		return
+	}
+	_, e = ing.ProcessOne(ctx)
+	if e != nil {
+		return
+	}
+	m := message(t, s, id)
+	var receipt string
+	s.DB.QueryRow("SELECT content FROM replies WHERE message_id=?", id).Scan(&receipt)
+	if m.Status == "ready" {
+		t.Fatalf("file with no bytes: status=%s attachments=%d content=%q receipt=%q", m.Status, len(m.Attachments), m.Content, receipt)
+	}
+}

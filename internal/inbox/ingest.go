@@ -129,7 +129,7 @@ func extractParts(obj map[string]json.RawMessage, depth int) (string, []MediaSou
 			return "", nil, errors.New("invalid message part")
 		}
 	}
-	if part.URL != "" {
+	if part.URL != "" || kind == "file" || kind == "image" || kind == "video" {
 		name := part.Name
 		if name == "" {
 			name = kind
@@ -291,7 +291,7 @@ func (s *Store) WriteAttachment(ctx context.Context, a Attachment, data []byte, 
 	if err != nil {
 		return err
 	}
-	meta, err := os.OpenFile(path+".manifest.json", os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0600)
+	meta, err := os.OpenFile(path+".manifest.json.pending", os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0600)
 	if err != nil {
 		return err
 	}
@@ -301,6 +301,9 @@ func (s *Store) WriteAttachment(ctx context.Context, a Attachment, data []byte, 
 	}
 	meta.Close()
 	if err != nil {
+		return err
+	}
+	if err = os.Rename(path+".manifest.json.pending", path+".manifest.json"); err != nil {
 		return err
 	}
 	if err = os.Rename(staging, path); err != nil {
@@ -459,7 +462,12 @@ func (i *Ingestor) ProcessOne(ctx context.Context) (bool, error) {
 		}
 		recovered, e := i.Store.RecoverAttachment(ctx, a)
 		if e != nil {
-			return true, e
+			a.Status = "failed"
+			a.Error = "local recovery evidence invalid; files retained for operator recovery"
+			if e = i.Store.SaveAttachment(ctx, a); e != nil {
+				return true, e
+			}
+			continue
 		}
 		if recovered {
 			updated, e := i.Store.Get(ctx, id)

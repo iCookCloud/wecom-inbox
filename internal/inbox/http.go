@@ -519,7 +519,7 @@ func (s *Server) export(w http.ResponseWriter, r *http.Request) {
 	}
 }
 func csvSafe(v string) string {
-	trim := strings.TrimLeft(v, " ")
+	trim := strings.TrimLeft(v, " \t\r\n")
 	if trim != "" && strings.ContainsAny(trim[:1], "=+-@\t\r") {
 		return "'" + v
 	}

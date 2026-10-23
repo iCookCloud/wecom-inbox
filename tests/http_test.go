@@ -258,3 +258,11 @@ func TestSecurityConsumerAdminResultIsolation(t *testing.T) {
 		t.Fatalf("consumer reads administrator result: %s", body)
 	}
 }
+
+func TestReservedNetworkRangesRejected(t *testing.T) {
+	for _, u := range []string{"https://100.100.100.200/latest/meta-data", "https://198.18.0.1", "https://192.168.1.1", "https://[::1]", "https://[::ffff:127.0.0.1]"} {
+		if inbox.ValidateURL(u, false) == nil {
+			t.Errorf("restricted address accepted: %s", u)
+		}
+	}
+}
