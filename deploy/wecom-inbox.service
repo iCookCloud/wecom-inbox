@@ -1,0 +1,20 @@
+[Unit]
+Description=WeCom Inbox
+After=network-online.target
+Wants=network-online.target
+[Service]
+Type=simple
+User=wecom-inbox
+Group=wecom-inbox
+WorkingDirectory=/var/lib/wecom-inbox
+ExecStart=/usr/local/bin/wecom-inbox serve -c /etc/wecom-inbox/config.toml
+Restart=on-failure
+RestartSec=5
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/wecom-inbox
+[Install]
+WantedBy=multi-user.target

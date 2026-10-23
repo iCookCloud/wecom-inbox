@@ -1,0 +1,236 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>WeCom Inbox</title>
+    <link rel="stylesheet" href="/style.css" />
+    <script src="/app.js" defer></script>
+  </head>
+  <body>
+    <div id="toast" class="toast" role="status" hidden></div>
+    <section id="login" class="login-page">
+      <div class="login-card">
+        <div class="brand-mark">↧</div>
+        <p class="eyebrow">WECOM INBOX</p>
+        <h1 data-i18n="loginTitle">让业务资料，有迹可循。</h1>
+        <p class="muted" data-i18n="loginIntro">
+          消息、附件与处理记录，保存在你自己的收件箱。
+        </p>
+        <form id="login-form">
+          <label for="token" data-i18n="accessToken">管理员访问令牌</label
+          ><input
+            id="token"
+            type="password"
+            autocomplete="current-password"
+            required
+            minlength="32"
+          />
+          <p class="hint" data-i18n="tokenHint">
+            使用初始化时生成的私有配置中的 admin_token。
+          </p>
+          <button class="primary full" type="submit" data-i18n="signIn">
+            打开收件箱
+          </button>
+          <p id="login-error" class="error" role="alert"></p>
+        </form>
+        <div class="login-foot">
+          <span data-i18n="localFirst">自主托管 · 无需 AI 账号</span
+          ><button class="text-button language">English</button>
+        </div>
+      </div>
+    </section>
+    <div id="workspace" hidden>
+      <header class="topbar">
+        <a href="#inbox" class="brand"
+          ><span class="brand-mark small">↧</span
+          ><span
+            >WeCom <b>Inbox</b
+            ><small data-i18n="brandSub">业务资料，可靠留存</small></span
+          ></a
+        >
+        <div class="top-actions">
+          <span class="private-pill"
+            ><i></i><span data-i18n="yourData">你的资料，你的存储</span></span
+          ><button class="text-button language">English</button
+          ><button class="text-button" id="logout" data-i18n="signOut">
+            退出
+          </button>
+        </div>
+      </header>
+      <div class="app-layout">
+        <nav class="sidebar" aria-label="Main navigation">
+          <p class="nav-label" data-i18n="workspace">工作空间</p>
+          <button class="nav-item active" id="nav-inbox">
+            <span>▤</span><span data-i18n="allInbox">全部收件</span
+            ><span id="nav-count" class="nav-count">0</span></button
+          ><button class="nav-item" id="nav-attention">
+            <span>!</span><span data-i18n="attention">待关注</span></button
+          ><button class="nav-item" id="nav-connections">
+            <span>⇄</span><span data-i18n="connections">连接与处理程序</span>
+          </button>
+          <p class="nav-label bot-label" data-i18n="bots">机器人</p>
+          <div id="bot-nav"></div>
+          <div class="sidebar-foot">
+            <span class="mini-mark">↧</span>
+            <p data-i18n="independent">
+              先留存，再处理。<br />不依赖任何一种 Agent。
+            </p>
+          </div>
+        </nav>
+        <main class="main">
+          <section id="inbox-view">
+            <div class="page-heading">
+              <div>
+                <p class="eyebrow" data-i18n="eyebrow">YOUR BUSINESS INBOX</p>
+                <h1 data-i18n="inboxTitle">每一份资料，都有来处。</h1>
+                <p class="muted" data-i18n="inboxIntro">
+                  统一收件、保存原件，让后续处理有据可查。
+                </p>
+              </div>
+              <button class="button" id="refresh" data-i18n="refresh">
+                刷新收件
+              </button>
+            </div>
+            <div class="stats">
+              <div>
+                <span data-i18n="totalMessages">已收消息</span
+                ><strong id="stat-messages">0</strong>
+              </div>
+              <div>
+                <span data-i18n="totalAttachments">留存附件</span
+                ><strong id="stat-attachments">0</strong>
+              </div>
+              <div>
+                <span data-i18n="pendingArchive">正在归档</span
+                ><strong id="stat-pending">0</strong>
+              </div>
+              <div>
+                <span data-i18n="needsAttention">需要关注</span
+                ><strong id="stat-attention">0</strong>
+              </div>
+            </div>
+            <div class="inbox-card">
+              <div class="toolbar">
+                <label class="search-box"
+                  ><span>⌕</span
+                  ><input
+                    id="search"
+                    type="search"
+                    placeholder="搜索消息内容或文件名"
+                    aria-label="搜索消息内容或文件名" /></label
+                ><select id="type-filter" aria-label="Message type">
+                  <option value="" data-i18n="allTypes">全部类型</option>
+                  <option value="text" data-i18n="text">文字</option>
+                  <option value="file" data-i18n="file">文件</option>
+                  <option value="image" data-i18n="image">图片</option>
+                  <option value="mixed" data-i18n="mixed">图文</option>
+                  <option value="voice" data-i18n="voice">
+                    语音转写
+                  </option></select
+                ><select id="status-filter" aria-label="Archive status">
+                  <option value="" data-i18n="allStatuses">全部状态</option>
+                  <option value="ready" data-i18n="ready">已归档</option>
+                  <option value="pending" data-i18n="pending">归档中</option>
+                  <option value="partial" data-i18n="partial">部分失败</option>
+                  <option value="failed" data-i18n="failed">
+                    失败
+                  </option></select
+                ><button id="filter-toggle" class="button" data-i18n="filters">
+                  筛选</button
+                ><select id="export" aria-label="Export">
+                  <option value="" data-i18n="export">导出</option>
+                  <option value="json">JSON</option>
+                  <option value="csv">CSV</option>
+                </select>
+              </div>
+              <div id="extra-filters" class="extra-filters" hidden>
+                <label
+                  ><span data-i18n="senderId">发送人 ID</span
+                  ><input id="sender-filter" type="text" /></label
+                ><label
+                  ><span data-i18n="fromDate">起始日期</span
+                  ><input id="from-filter" type="date" /></label
+                ><label
+                  ><span data-i18n="toDate">结束日期</span
+                  ><input id="to-filter" type="date" /></label
+                ><button id="apply-filters" class="button" data-i18n="apply">
+                  应用筛选
+                </button>
+              </div>
+              <div class="list-heading">
+                <span data-i18n="messageAndSource">资料与来源</span
+                ><span data-i18n="archiveStatus">归档状态</span
+                ><span data-i18n="receivedAt">收到时间</span>
+              </div>
+              <div id="message-list" aria-live="polite"></div>
+              <div id="empty" class="empty">
+                <div class="empty-symbol">↧</div>
+                <h2 data-i18n="emptyTitle">收件箱已准备好</h2>
+                <p data-i18n="emptyText">
+                  连接机器人后，收到的消息和附件会显示在这里。
+                </p>
+                <button
+                  id="empty-setup"
+                  class="button"
+                  data-i18n="viewConnections"
+                >
+                  查看连接配置
+                </button>
+              </div>
+              <div class="list-footer">
+                <span id="list-summary" class="muted"></span
+                ><button
+                  id="load-more"
+                  class="button"
+                  hidden
+                  data-i18n="loadMore"
+                >
+                  加载更多
+                </button>
+              </div>
+            </div>
+            <p class="page-note" data-i18n="scopeNote">
+              仅归档机器人实际收到的内容；群聊需按企业微信规则触发。
+            </p>
+          </section>
+          <section id="connections-view" hidden>
+            <div class="page-heading">
+              <div>
+                <p class="eyebrow">CONNECTED, NOT LOCKED IN</p>
+                <h1 data-i18n="connections">连接与处理程序</h1>
+                <p class="muted" data-i18n="connectionsIntro">
+                  机器人负责收件，外部程序各自处理。资料始终留在这里。
+                </p>
+              </div>
+            </div>
+            <h2 data-i18n="bots">机器人</h2>
+            <div id="bot-cards" class="connection-grid"></div>
+            <h2 data-i18n="consumers">处理程序</h2>
+            <div id="consumer-cards" class="connection-grid"></div>
+            <div class="setup-note">
+              <h3 data-i18n="configure">如何添加连接</h3>
+              <p data-i18n="configureText">
+                在私有 config.toml 中配置 bots 和
+                consumers。有效的配置修改会自动加载。不要把令牌或机器人密钥发给其他用户。
+              </p>
+              <p data-i18n="noModel">
+                只使用归档功能时，无需配置模型或处理程序。
+              </p>
+            </div>
+          </section>
+        </main>
+      </div>
+      <div id="detail-backdrop" hidden></div>
+      <aside id="detail" class="detail" aria-label="Message details" hidden>
+        <div class="detail-top">
+          <span class="eyebrow" data-i18n="record">ARCHIVE RECORD</span
+          ><button class="icon-button" id="close-detail" aria-label="Close">
+            ×
+          </button>
+        </div>
+        <div id="detail-content"></div>
+      </aside>
+    </div>
+  </body>
+</html>

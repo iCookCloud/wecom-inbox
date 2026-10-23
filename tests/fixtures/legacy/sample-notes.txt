@@ -1,0 +1,2 @@
+SYNTHETIC TEST FIXTURE — not customer data.
+Delivery preference: weekdays, after 10:00.
