@@ -8,6 +8,10 @@ A self-hosted business inbox for messages and files delivered to a WeCom smart b
 
 > **v0.1.0 release candidate — private acceptance in progress.** Automated regression tests and local browser checks are available; current real-WeCom message/media acceptance is pending. This is an independent community project, not an official Tencent product. It archives only callbacks delivered to your Bot, not all conversations in an organization or arbitrary personal WeChat chats.
 
+![WeCom Inbox](docs/assets/inbox-desktop.png)
+
+Web inbox with explicitly synthetic test fixtures; no customer data.
+
 ## What it does
 
 - Multiple Bots with explicit sender/chat allowlists and independent connections.
