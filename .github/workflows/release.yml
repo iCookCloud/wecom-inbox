@@ -24,4 +24,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           VERSION: ${{ github.ref_name }}
-        run: gh release create "$VERSION" --verify-tag --generate-notes dist/wecom-inbox-* dist/SHA256SUMS dist/LICENSE dist/THIRD_PARTY_NOTICES.md
+        run: |
+          release_flags=()
+          if [[ "$VERSION" == *-* ]]; then release_flags+=(--prerelease); fi
+          gh release create "$VERSION" --verify-tag --generate-notes "${release_flags[@]}" dist/wecom-inbox-* dist/SHA256SUMS dist/LICENSE dist/THIRD_PARTY_NOTICES.md
