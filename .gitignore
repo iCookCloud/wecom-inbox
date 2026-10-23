@@ -1,0 +1,13 @@
+/wecom-inbox
+/wecom-gw
+/dist/
+/data/
+/config.toml
+.env
+.env.*
+!.env.example
+*.db
+*.db-*
+*.sqlite*
+*.log
+coverage.out
