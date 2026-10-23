@@ -92,6 +92,11 @@ func (s *Store) ImportJSONL(ctx context.Context, input io.Reader, mediaRoot stri
 		}
 		if !created && m.Status != "importing" {
 			report.Duplicates++
+			for _, a := range m.Attachments {
+				if a.Status != "ready" {
+					report.FailedAttachments++
+				}
+			}
 			continue
 		}
 		if len(m.Attachments) != len(paths) {

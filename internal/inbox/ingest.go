@@ -99,6 +99,11 @@ func extractParts(obj map[string]json.RawMessage, depth int) (string, []MediaSou
 	}
 	var kind string
 	_ = json.Unmarshal(obj["msgtype"], &kind)
+	switch kind {
+	case "text", "voice", "file", "image", "video", "mixed":
+	default:
+		return "", nil, errors.New("unsupported message part type")
+	}
 	media := []MediaSource{}
 	if kind == "mixed" {
 		var mixed struct {

@@ -36,13 +36,14 @@ wecom-inbox import -c /path/config.toml \
   --file /old-data/bot/messages/2026-07-31.jsonl --media-root /old-data
 ```
 
-The source file and source media are unchanged. Import never follows references outside `media-root`, never downloads old `raw` URLs, and never creates automatic deliveries or replies. The same completed record can be imported again without duplication. An interrupted import stays `importing`; rerun the same input to resume. Missing attachments or invalid lines are explicitly reported and produce exit 1. Inspect those records rather than assuming a complete migration.
+The source file and source media are unchanged. Import never follows references outside `media-root`, never downloads old `raw` URLs, and never creates automatic deliveries or replies. The same completed record can be imported again without duplication. An interrupted import stays `importing`; rerun the same input to resume. Missing attachments or invalid lines are explicitly reported and produce exit 1, including when an already-incomplete record is imported again. Completed partial imports retain their prior failure status; restoring missing source files does not silently overwrite the archive. Inspect those records rather than assuming a complete migration.
 
 Validate record counts, original timestamps and file hashes before retiring any old system. Legacy Bot-management commands are not included; configure Bots in the new private TOML file.
 
 ## Practical limits
 
 - Single host and one ingest worker; SQLite serializes database access.
+- Unsupported message or mixed-part types are explicitly rejected without a success receipt.
 - Callback body up to 1 MiB; message text/quote up to 512 KiB; up to 20 attachments.
 - Default per-file limit 50 MiB, configurable from 1–50; aggregate attachments up to 100 MiB per message.
 - Three media-download attempts while links remain usable. Expired links cannot be recreated; request a new upload.

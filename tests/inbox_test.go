@@ -676,3 +676,56 @@ func TestCorruptPendingPayloadDoesNotBlockOtherRecords(t *testing.T) {
 		t.Fatal("damaged pending event blocked unrelated intake")
 	}
 }
+
+func TestReleaseReviewUnsupportedPartCannotDisappearIntoReady(t *testing.T) {
+	s := store(t)
+	c := config()
+	c.Bots[0].Receipt = true
+	ingest := inbox.Ingestor{Store: s, Config: func() inbox.Config { return c }}
+	body := []byte(`{"msgid":"unsupported","chattype":"single","from":{"userid":"user-a"},"msgtype":"mixed","mixed":{"msg_item":[{"msgtype":"text","text":{"content":"see the attached location"}},{"msgtype":"location","location":{"latitude":31.2,"longitude":121.5,"title":"original business location"}}]}}`)
+	id, _, err := ingest.Accept(ctx, "bot-a", "request", body)
+	if err != nil {
+		return
+	}
+	if _, err = ingest.ProcessOne(ctx); err != nil {
+		t.Fatal(err)
+	}
+	m := message(t, s, id)
+	var payload []byte
+	if err = s.DB.QueryRow("SELECT payload FROM messages WHERE id=?", id).Scan(&payload); err != nil {
+		t.Fatal(err)
+	}
+	var receipt string
+	if err = s.DB.QueryRow("SELECT content FROM replies WHERE message_id=?", id).Scan(&receipt); err != nil {
+		t.Fatal(err)
+	}
+	t.Logf("status=%s text=%q attachments=%d payload_bytes=%d receipt=%q", m.Status, m.Content, len(m.Attachments), len(payload), receipt)
+	if m.Status == "ready" && len(payload) == 0 {
+		t.Fatal("unknown part lost while archival success is asserted")
+	}
+}
+
+func TestReleaseReviewReimportMissingAttachmentReportsIncomplete(t *testing.T) {
+	s := store(t)
+	root := t.TempDir()
+	line := `{"ts":"2026-07-31T12:00:00Z","bot_id":"bot-a","msgid":"missing-import","chat_type":"single","from_userid":"user-a","msgtype":"file","content":"invoice","file_path":"invoice.txt"}`
+	first, err := s.ImportJSONL(ctx, strings.NewReader(line), root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = os.WriteFile(filepath.Join(root, "invoice.txt"), []byte("original invoice"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	second, err := s.ImportJSONL(ctx, strings.NewReader(line), root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	p, err := s.List(ctx, inbox.Filter{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Logf("first=%+v second=%+v archive_status=%s attachment_status=%s", first, second, p.Messages[0].Status, p.Messages[0].Attachments[0].Status)
+	if second.FailedAttachments == 0 && p.Messages[0].Attachments[0].Status != "ready" {
+		t.Fatal("reimport reports no missing attachment while retained record is still incomplete")
+	}
+}
