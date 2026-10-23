@@ -1,0 +1,27 @@
+name: release
+on:
+  push:
+    tags: ['v*']
+permissions:
+  contents: write
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: Verify
+        run: make check
+      - name: Build release
+        env:
+          VERSION: ${{ github.ref_name }}
+        run: |
+          case "$VERSION" in *[!a-zA-Z0-9._-]*) exit 1 ;; esac
+          make release VERSION="$VERSION"
+      - name: Publish release assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ github.ref_name }}
+        run: gh release create "$VERSION" --verify-tag --generate-notes dist/wecom-inbox-* dist/SHA256SUMS dist/LICENSE dist/THIRD_PARTY_NOTICES.md

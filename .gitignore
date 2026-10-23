@@ -11,3 +11,5 @@
 *.sqlite*
 *.log
 coverage.out
+__pycache__/
+/consumer-data/

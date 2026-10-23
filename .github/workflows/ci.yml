@@ -1,0 +1,20 @@
+name: ci
+on: [push, pull_request]
+permissions:
+  contents: read
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: Format
+        run: test -z "$(gofmt -l cmd internal tests web/embed.go)"
+      - name: Test and race detector
+        run: make check
+      - name: JavaScript syntax
+        run: node --check web/app.js
+      - name: Build without CGO
+        run: make build
