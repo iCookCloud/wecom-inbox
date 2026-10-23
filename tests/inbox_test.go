@@ -657,3 +657,22 @@ func TestColdMissingFileURLCannotReportArchived(t *testing.T) {
 		t.Fatalf("file with no bytes: status=%s attachments=%d content=%q receipt=%q", m.Status, len(m.Attachments), m.Content, receipt)
 	}
 }
+
+func TestCorruptPendingPayloadDoesNotBlockOtherRecords(t *testing.T) {
+	s := store(t)
+	id := put(t, s, input("damaged", "bot-a", "original"))
+	if _, e := s.DB.Exec("UPDATE messages SET payload=? WHERE id=?", []byte("invalid ciphertext"), id); e != nil {
+		t.Fatal(e)
+	}
+	later := put(t, s, input("later", "bot-b", "healthy"))
+	ing := inbox.Ingestor{Store: s, Config: config}
+	if _, e := ing.ProcessOne(ctx); e != nil {
+		t.Fatal(e)
+	}
+	if _, e := ing.ProcessOne(ctx); e != nil {
+		t.Fatal(e)
+	}
+	if message(t, s, id).Status != "failed" || message(t, s, later).Status != "ready" {
+		t.Fatal("damaged pending event blocked unrelated intake")
+	}
+}

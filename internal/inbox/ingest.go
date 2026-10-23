@@ -438,6 +438,10 @@ func (i *Ingestor) ProcessOne(ctx context.Context) (bool, error) {
 		return false, nil
 	}
 	if err != nil {
+		if id > 0 && ctx.Err() == nil {
+			_, saveErr := i.Store.DB.ExecContext(ctx, "UPDATE messages SET status='failed',error='pending event cannot be decoded; retained for operator recovery' WHERE id=?", id)
+			return true, saveErr
+		}
 		return false, err
 	}
 	m, err := i.Store.Get(ctx, id)
