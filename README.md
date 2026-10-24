@@ -10,7 +10,7 @@ New to the project? The Chinese guide provides separate paths for [an existing B
 [trying the inbox without a Bot](README.zh-CN.md#without-bot), and [creating a new Bot](README.zh-CN.md#create-bot).
 These are configurations of the same application. Without a Bot, imported records remain usable, but live WeCom intake and replies are unavailable.
 
-> **v0.1.0 release candidate — private acceptance in progress.** Automated regression tests and local browser checks are available; current real-WeCom message/media acceptance is pending. This is an independent community project, not an official Tencent product. It archives only callbacks delivered to your Bot, not all conversations in an organization or arbitrary personal WeChat chats.
+> **v0.1.0 release candidate — private acceptance in progress.** Automated regression tests and local browser checks are available. Real-WeCom acceptance has passed for direct chats, group @-mentions, quoted files and media; reconnect behavior and independent first-time setup are still pending. Verified platform limits: voice arrives as transcribed text only, merged chat records carry no content, quotes of expired files carry no original, and each attachment is capped at 50 MB ([acceptance record](docs/design.md#真实平台验收记录2026-10-24)). This is an independent community project, not an official Tencent product. It archives only callbacks delivered to your Bot, not all conversations in an organization or arbitrary personal WeChat chats.
 
 ![WeCom Inbox](docs/assets/inbox-desktop.png)
 
