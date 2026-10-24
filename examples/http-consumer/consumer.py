@@ -10,6 +10,7 @@ import urllib.error
 import urllib.request
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
+from socketserver import TCPServer
 
 API = os.environ.get('INBOX_URL', 'http://127.0.0.1:8787').rstrip('/')
 TOKEN = os.environ['INBOX_TOKEN']
@@ -94,8 +95,15 @@ class Handler(BaseHTTPRequestHandler):
         print('consumer:', args[1] if len(args) > 1 else 'request', flush=True)
 
 
+class LoopbackServer(HTTPServer):
+    def server_bind(self):
+        # 本机监听直接使用绑定地址，不让启动依赖可能阻塞的反向 DNS。
+        TCPServer.server_bind(self)
+        self.server_name, self.server_port = self.server_address[:2]
+
+
 if __name__ == '__main__':
-    server = HTTPServer(('127.0.0.1', int(os.environ.get('CONSUMER_PORT', '8790'))), Handler)
+    server = LoopbackServer(('127.0.0.1', int(os.environ.get('CONSUMER_PORT', '8790'))), Handler)
     print('Consumer ready; no AI provider configured.', flush=True)
     try:
         server.serve_forever()

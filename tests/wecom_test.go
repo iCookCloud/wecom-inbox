@@ -135,12 +135,26 @@ func TestLocalTransportToIndependentPythonConsumerAndReply(t *testing.T) {
 	defer apiServer.Close()
 	processCtx, cancel := context.WithTimeout(ctx, 20*time.Second)
 	defer cancel()
-	command := exec.CommandContext(processCtx, "python3", filepath.Join("..", "examples", "http-consumer", "consumer.py"))
+	bootstrap := `import runpy, socket, sys
+def reject_reverse_dns(*args, **kwargs):
+    raise RuntimeError("loopback consumer must not require reverse DNS")
+socket.getfqdn = reject_reverse_dns
+runpy.run_path(sys.argv[1], run_name="__main__")`
+	command := exec.CommandContext(processCtx, "python3", "-u", "-c", bootstrap, filepath.Join("..", "examples", "http-consumer", "consumer.py"))
 	command.Env = append(os.Environ(), "INBOX_URL="+apiServer.URL, "INBOX_TOKEN="+consumerToken, "WEBHOOK_SECRET="+strings.Repeat("s", 32), "CONSUMER_PORT="+strconv.Itoa(port), "CONSUMER_DATA="+t.TempDir(), "INBOX_REPLY=true")
-	if e = command.Start(); e != nil {
+	consumerLogPath := filepath.Join(t.TempDir(), "consumer.log")
+	consumerLog, e := os.OpenFile(consumerLogPath, os.O_CREATE|os.O_WRONLY, 0600)
+	if e != nil {
 		t.Fatal(e)
 	}
-	defer func() { cancel(); _ = command.Wait() }()
+	command.Stdout, command.Stderr = consumerLog, consumerLog
+	if e = command.Start(); e != nil {
+		consumerLog.Close()
+		t.Fatal(e)
+	}
+	var stopOnce sync.Once
+	stopConsumer := func() { stopOnce.Do(func() { cancel(); _ = command.Wait(); _ = consumerLog.Close() }) }
+	defer stopConsumer()
 	client := http.Client{Timeout: time.Second}
 	ready := false
 	for deadline := time.Now().Add(5 * time.Second); time.Now().Before(deadline); {
@@ -155,7 +169,9 @@ func TestLocalTransportToIndependentPythonConsumerAndReply(t *testing.T) {
 		time.Sleep(20 * time.Millisecond)
 	}
 	if !ready {
-		t.Fatal("independent Python consumer did not become ready")
+		stopConsumer()
+		details, _ := os.ReadFile(consumerLogPath)
+		t.Fatalf("independent Python consumer did not become ready (%s): %s", command.Path, details)
 	}
 	ing := inbox.Ingestor{Store: s, Config: func() inbox.Config { return c }, Downloader: inbox.Downloader{AllowPrivate: true}}
 	accepted := make(chan int64, 1)
