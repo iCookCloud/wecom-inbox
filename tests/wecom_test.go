@@ -135,7 +135,7 @@ func TestLocalTransportToIndependentPythonConsumerAndReply(t *testing.T) {
 	defer apiServer.Close()
 	processCtx, cancel := context.WithTimeout(ctx, 20*time.Second)
 	defer cancel()
-	command := exec.CommandContext(processCtx, "python3", "-u", "-c", "import faulthandler,runpy,sys; faulthandler.dump_traceback_later(3); runpy.run_path(sys.argv[1],run_name="__main__")", filepath.Join("..", "examples", "http-consumer", "consumer.py"))
+	command := exec.CommandContext(processCtx, "python3", "-u", "-c", `import faulthandler,runpy,sys; faulthandler.dump_traceback_later(3); runpy.run_path(sys.argv[1],run_name="__main__")`, filepath.Join("..", "examples", "http-consumer", "consumer.py"))
 	command.Env = append(os.Environ(), "INBOX_URL="+apiServer.URL, "INBOX_TOKEN="+consumerToken, "WEBHOOK_SECRET="+strings.Repeat("s", 32), "CONSUMER_PORT="+strconv.Itoa(port), "CONSUMER_DATA="+t.TempDir(), "INBOX_REPLY=true")
 	consumerLogPath := filepath.Join(t.TempDir(), "consumer.log")
 	consumerLog, e := os.OpenFile(consumerLogPath, os.O_CREATE|os.O_WRONLY, 0600)
