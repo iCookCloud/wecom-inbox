@@ -211,6 +211,17 @@ func (d *Dispatcher) DeliverOne(ctx context.Context) (bool, error) {
 
 var ErrOffline = errors.New("bot is disconnected")
 var ErrUncertain = errors.New("platform acknowledgement not received; delivery is uncertain")
+var ErrAccepted = errors.New("platform accepted the message; final delivery is not confirmed")
+
+type Reply struct {
+	ID                 int64
+	Message            Message
+	Content, RequestID string
+}
+
+type ReplySender interface {
+	SendReply(context.Context, Reply) error
+}
 
 type Sender interface {
 	Send(context.Context, string, string, string, string, string) error
@@ -234,6 +245,7 @@ func (d *Dispatcher) ReplyOne(ctx context.Context, sender Sender) (bool, error) 
 	c := d.Config()
 	bot, enabled := c.Bot(m.BotID)
 	authorized := enabled && bot.Enabled && (contains(bot.AllowedUsers, m.SenderID) || contains(bot.AllowedChats, m.ChatID))
+	authorized = authorized && m.ChatType != "wechat_kf_event"
 	if kind == "receipt" {
 		authorized = authorized && bot.Receipt
 	} else {
@@ -259,10 +271,16 @@ func (d *Dispatcher) ReplyOne(ctx context.Context, sender Sender) (bool, error) 
 		if _, err = d.Store.DB.ExecContext(ctx, `UPDATE replies SET status='uncertain',error='send interrupted before acknowledgement' WHERE id=?`, id); err != nil {
 			return true, err
 		}
-		err = sender.Send(ctx, m.BotID, m.ChatID, m.ChatType, content, reqID)
+		if detailed, ok := sender.(ReplySender); ok {
+			err = detailed.SendReply(ctx, Reply{ID: id, Message: m, Content: content, RequestID: reqID})
+		} else {
+			err = sender.Send(ctx, m.BotID, m.ChatID, m.ChatType, content, reqID)
+		}
 		if errors.Is(err, ErrOffline) {
 			status = "pending"
 			failure = "bot disconnected"
+		} else if errors.Is(err, ErrAccepted) {
+			status = "accepted"
 		} else if errors.Is(err, ErrUncertain) {
 			status = "uncertain"
 			failure = err.Error()
@@ -271,6 +289,7 @@ func (d *Dispatcher) ReplyOne(ctx context.Context, sender Sender) (bool, error) 
 			failure = err.Error()
 		}
 	}
-	_, err = d.Store.DB.ExecContext(ctx, `UPDATE replies SET status=?,error=?,next_at=? WHERE id=?`, status, failure, time.Now().Add(5*time.Second).UTC().Format(timestampLayout), id)
+	// 异步发送失败事件可能先到达，不能用较晚的同步受理结果覆盖它。
+	_, err = d.Store.DB.ExecContext(ctx, `UPDATE replies SET status=?,error=?,next_at=? WHERE id=? AND status IN ('pending','uncertain')`, status, failure, time.Now().Add(5*time.Second).UTC().Format(timestampLayout), id)
 	return true, err
 }

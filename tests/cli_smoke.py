@@ -50,7 +50,8 @@ def main():
         endpoint = f'http://127.0.0.1:{port}'
         for attempt in range(100):
             if process.poll() is not None:
-                raise RuntimeError('no-Bot service exited before readiness')
+                output, _ = process.communicate(timeout=2)
+                raise RuntimeError('no-Bot service exited before readiness: ' + output.decode(errors='replace'))
             try:
                 with urllib.request.urlopen(endpoint + '/healthz', timeout=1) as response:
                     if json.load(response)['ok']:

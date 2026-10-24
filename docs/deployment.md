@@ -53,3 +53,54 @@ Validate record counts, original timestamps and file hashes before retiring any 
 - No automatic data retention/deletion or cloud replication. Monitor free disk space and back up regularly.
 
 Health reports a database probe; it does not certify Bot connection health or a recipient's view. Inspect `/v1/bots`, delivery status and real client receipts for those checks.
+
+
+<a id="wechat-customer-service"></a>
+
+## WeChat customer service
+
+This connector uses **enterprise-managed WeChat customer service** at `qyapi.weixin.qq.com`. It does not use the standalone customer-service API. Ordinary WeChat users contact a customer-service account through its official link; they do not need to install WeCom. This does not grant access to their other chats or groups.
+
+Provision an enabled custom application, add it to WeCom customer service's **可调用接口的应用**, grant it management of the selected customer-service accounts and put required servicers in its visible scope. Follow the console's trusted-IP/domain requirements. New tenants must not rely on the legacy customer-service system-application secret; the official API stopped granting that path to new tenants in December 2023.
+
+The private configuration uses one `[[wechat_kf]]` connection per authorized application and nested `[[wechat_kf.accounts]]` records. See `config.example.toml` for exact fields. `corp_id` and `secret` identify the application; `token` and `encoding_aes_key` authenticate/decrypt callbacks. The latter must be exactly 43 Base64 characters decoding to 32 bytes. Each account needs an explicit `allowed_customers` list; `["*"]` intentionally accepts everyone who contacts that customer-service account. No Bot is required.
+
+Before enabling the connection, `wecom-inbox kf-accounts -c /private/config.toml --connection customer-service` can list authorized account IDs with a disabled connection. After configuring an account, `wecom-inbox kf-link -c /private/config.toml --bot 'kf:CORP_ID:OPEN_KFID'` obtains its official contact URL. Neither command prints access tokens or secrets. Both contact Tencent; `check` remains offline.
+
+### Public callback, private inbox
+
+Run `serve` before saving the callback in the WeCom console. Configure the same Token and EncodingAESKey on both sides and use:
+
+`https://callback.example.com/callbacks/wechat-kf/customer-service`
+
+The last component is the configured connection `id`. The handler verifies the SHA-1 signature, timestamp, AES payload and recipient CorpID, responds to GET verification with the exact decrypted challenge, and persists POST notifications before acknowledging them. No administrator or consumer token belongs in this URL. All other `/v1` routes retain their existing authentication.
+
+For a callback-only Nginx host inside an already configured TLS `server` block:
+
+```nginx
+location /callbacks/wechat-kf/ {
+    client_max_body_size 1m;
+    proxy_pass http://127.0.0.1:8787;
+    proxy_set_header Host $host;
+    proxy_set_header X-Forwarded-Proto https;
+}
+location / { return 404; }
+```
+
+Obtain and configure the domain/TLS certificate separately. Callback verification is GET; notifications are POST, so allow both. Keep the management UI private, or use the normal full-site HTTPS configuration and set `public_url` to that site's exact origin. `public_url` is a browser-origin setting; it need not point to a callback-only host. Keep system time synchronized because signed notifications have a time window.
+
+### Recovery and platform limits
+
+- Every account has its own durable cursor and encrypted short-lived notification token. Accounts are scheduled in rotation so one busy account does not starve another. New callbacks cannot be overwritten by an in-flight sync.
+- Messages are committed before advancing a page cursor. A crash between these writes replays the page safely through message deduplication. Empty pages with `has_more=1` are followed.
+- A 60-second fallback pull reduces dependence on callbacks; failures back off. Tencent restricts calls without a fresh notification token, so callbacks remain the primary delivery signal. The API only exposes the last three days: initial setup may ingest that interval; outages beyond it can cause an unrecoverable gap.
+- Media IDs are kept only in encrypted pending records; fresh access tokens are obtained in memory for download. API URLs are fixed to Tencent and redirects are refused. Callback bodies and JSON responses have size bounds; the normal archive limits still apply.
+- Unsupported messages have `failed` status, encrypted raw payload and a visible explanation. Customer-servicer messages are archived as `wechat_kf_event` and do not enqueue Webhooks or automated replies. Non-message system events are used for delivery reconciliation, not shown as conversation content. Invalid or mismatched account pages do not advance the cursor.
+- Removing a customer from `allowed_customers` prevents new intake, pending media downloads and queued replies. Previously accepted text/history remains available to authorized consumers; removing admission permission does not delete records or revoke an existing consumer's read scope. Revoke the consumer scope separately if needed.
+- Text replies are at most 2048 UTF-8 bytes. Receipt messages count toward Tencent's reply allowance and default off. Session state, the 48-hour window and the five-message allowance are enforced by the platform; no session takeover or automatic message splitting is attempted.
+- Successful sends are `accepted`. A later `msg_send_fail` event changes the associated reply to `failed`, even if it arrives before the synchronous API response. Connection ambiguity stays `uncertain`; restart never blindly resends it. Neither state proves what a person saw in WeChat.
+- Backups contain the cursor and outbound correlation tables along with messages and files. Stop the process before the normal backup procedure. The additive tables use the existing SQLite schema lifecycle; do not run multiple workers against the same account or data directory.
+
+The connector has local protocol tests, not live customer-service acceptance. Complete the account-based checklist in [the Chinese README](../README.zh-CN.md#wechat-customer-service) before treating it as ready for public release.
+
+Official contracts: [receive and sync](https://developer.work.weixin.qq.com/document/path/94670), [send restrictions](https://developer.work.weixin.qq.com/document/path/94677), [callback validation](https://developer.work.weixin.qq.com/document/path/90930), [download media](https://developer.work.weixin.qq.com/document/path/90254), [account IDs](https://developer.work.weixin.qq.com/document/path/94661), [contact links](https://developer.work.weixin.qq.com/document/path/94665).

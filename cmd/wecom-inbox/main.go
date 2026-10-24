@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/iCookCloud/wecom-inbox/internal/inbox"
+	"github.com/iCookCloud/wecom-inbox/internal/wechatkf"
 	"github.com/iCookCloud/wecom-inbox/internal/wecom"
 	"github.com/iCookCloud/wecom-inbox/web"
 )
@@ -33,7 +34,7 @@ func main() {
 
 func run(args []string) error {
 	if len(args) == 0 || args[0] == "help" || args[0] == "--help" {
-		fmt.Println("WeCom Inbox " + version + "\nCommands: init, serve, check, log, import, backup, restore, version\nUse COMMAND -h for options.")
+		fmt.Println("WeCom Inbox " + version + "\nCommands: init, serve, check, log, import, backup, restore, kf-accounts, kf-link, version\nUse COMMAND -h for options.")
 		return nil
 	}
 	if args[0] == "version" {
@@ -54,7 +55,8 @@ func run(args []string) error {
 	media := flags.String("media-root", ".", "allowed legacy media root")
 	from := flags.String("from", "", "backup source / earliest timestamp")
 	to := flags.String("to", "", "latest timestamp")
-	bot := flags.String("bot", "", "bot ID")
+	bot := flags.String("bot", "", "source ID (Bot ID or kf:CORP_ID:OPEN_KFID)")
+	connection := flags.String("connection", "", "wechat_kf connection ID (for kf-accounts)")
 	user := flags.String("user", "", "sender ID")
 	kind := flags.String("type", "", "message type")
 	query := flags.String("q", "", "search text or filename")
@@ -81,8 +83,49 @@ func run(args []string) error {
 		return err
 	}
 	if args[0] == "check" {
-		fmt.Printf("Config valid: %d bot(s), %d consumer(s). No network requests made.\n", len(c.Bots), len(c.Consumers))
+		fmt.Printf("Config valid: %d bot(s), %d customer-service connection(s), %d consumer(s). No network requests made.\n", len(c.Bots), len(c.WeChatKF), len(c.Consumers))
 		return nil
+	}
+	if args[0] == "kf-accounts" {
+		for _, k := range c.WeChatKF {
+			if k.ID == *connection {
+				if k.CorpID == "" || k.Secret == "" {
+					return errors.New("kf-accounts requires corp_id and application secret")
+				}
+				client := wechatkf.NewClient(k)
+				defer client.HTTP.CloseIdleConnections()
+				ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
+				defer cancel()
+				accounts, e := client.Accounts(ctx)
+				if e != nil {
+					return e
+				}
+				return json.NewEncoder(os.Stdout).Encode(accounts)
+			}
+		}
+		return errors.New("kf-accounts requires --connection matching a wechat_kf configuration")
+	}
+	if args[0] == "kf-link" {
+		for _, k := range c.WeChatKF {
+			for _, account := range k.Accounts {
+				if k.Source(account).ID == *bot {
+					if k.CorpID == "" || k.Secret == "" {
+						return errors.New("kf-link requires corp_id and application secret")
+					}
+					client := wechatkf.NewClient(k)
+					defer client.HTTP.CloseIdleConnections()
+					ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
+					defer cancel()
+					link, e := client.ContactLink(ctx, account.OpenKfID)
+					if e != nil {
+						return e
+					}
+					fmt.Println(link)
+					return nil
+				}
+			}
+		}
+		return errors.New("kf-link requires --bot kf:CORP_ID:OPEN_KFID matching a configured account")
 	}
 	lock, err := acquireLock(c.DataDir)
 	if err != nil {
@@ -206,8 +249,11 @@ func serve(initial inbox.Config, path string, s *inbox.Store) error {
 	})
 	manager.Reconcile(ctx, initial.Bots)
 	defer manager.Stop()
-	app := &inbox.Server{Store: s, Config: config.get, Assets: web.Assets, Sessions: wecom.NewCLIAPI().Sessions, BotStates: func() map[string]string {
-		out := map[string]string{}
+	kf := &wechatkf.Service{Store: s, Config: config.get, BotSender: manager}
+	defer kf.Close()
+	ingest.DownloadMedia = kf.Download
+	app := &inbox.Server{Store: s, Config: config.get, Assets: web.Assets, Callbacks: kf, Sessions: wecom.NewCLIAPI().Sessions, BotStates: func() map[string]string {
+		out := kf.States(ctx)
 		for _, b := range manager.Statuses() {
 			out[b.ID] = b.State
 		}
@@ -237,7 +283,8 @@ func serve(initial inbox.Config, path string, s *inbox.Store) error {
 	}
 	worker("archive worker", ingest.ProcessOne)
 	worker("delivery worker", dispatch.DeliverOne)
-	worker("reply worker", func(ctx context.Context) (bool, error) { return dispatch.ReplyOne(ctx, manager) })
+	worker("customer-service sync worker", kf.SyncOne)
+	worker("reply worker", func(ctx context.Context) (bool, error) { return dispatch.ReplyOne(ctx, kf) })
 	wg.Add(1)
 	go func() {
 		defer wg.Done()

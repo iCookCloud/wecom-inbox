@@ -513,6 +513,7 @@ h3 {
   width: fit-content;
 }
 .status.pending,
+.status.accepted,
 .status.processing {
   background: #edf1f7;
   color: #6a7f9e;
@@ -521,7 +522,8 @@ h3 {
 .status.failed,
 .status.uncertain,
 .status.expired,
-.status.auth_failed {
+.status.auth_failed,
+.status.sync_failed {
   background: #fff1e6;
   color: #b26e3c;
 }

@@ -41,12 +41,17 @@ type Server struct {
 	Assets    fs.FS
 	BotStates func() map[string]string
 	Sessions  func(context.Context, Bot) ([]Session, error)
+	Callbacks http.Handler
 	mu        sync.Mutex
 	attempts  map[string]loginAttempt
 }
 
 func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
+	if s.Callbacks != nil {
+		mux.Handle("GET /callbacks/wechat-kf/", s.Callbacks)
+		mux.Handle("POST /callbacks/wechat-kf/", s.Callbacks)
+	}
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, r *http.Request) {
 		if s.Store.DB.PingContext(r.Context()) != nil {
 			fail(w, 503, "unavailable", "database unavailable")
@@ -367,6 +372,10 @@ func (s *Server) result(w http.ResponseWriter, r *http.Request) {
 		fail(w, 403, "forbidden", "this consumer cannot send replies")
 		return
 	}
+	if in.Reply && (m.ChatType == "wechat_kf_event" || (m.ChatType == "wechat_kf" && len(in.Summary) > 2048)) {
+		fail(w, 400, "invalid_reply", "customer-service events cannot be replied to; text replies must be at most 2048 bytes")
+		return
+	}
 	v, created, e := s.Store.AddResult(r.Context(), m.ID, id.ID, in)
 	if errors.Is(e, ErrConflict) {
 		fail(w, 409, "conflict", e.Error())
@@ -415,6 +424,10 @@ func (s *Server) sessions(w http.ResponseWriter, r *http.Request) {
 		fail(w, 404, "not_found", "bot not found or disabled")
 		return
 	}
+	if b.Kind == "wechat_kf" {
+		fail(w, 400, "unsupported", "customer-service conversations are queried through /v1/messages")
+		return
+	}
 	if s.Sessions == nil {
 		fail(w, 501, "unavailable", "session listing is not configured")
 		return
@@ -433,7 +446,7 @@ func (s *Server) bots(w http.ResponseWriter, r *http.Request) {
 		states = s.BotStates()
 	}
 	out := []map[string]any{}
-	for _, b := range s.Config().Bots {
+	for _, b := range s.Config().Sources() {
 		if !allowed(who(r), b.ID) {
 			continue
 		}
@@ -443,7 +456,11 @@ func (s *Server) bots(w http.ResponseWriter, r *http.Request) {
 		} else if state == "" {
 			state = "disconnected"
 		}
-		out = append(out, map[string]any{"id": b.ID, "name": b.Name, "enabled": b.Enabled, "state": state})
+		kind := b.Kind
+		if kind == "" {
+			kind = "wecom_bot"
+		}
+		out = append(out, map[string]any{"id": b.ID, "name": b.Name, "kind": kind, "enabled": b.Enabled, "state": state})
 	}
 	respond(w, 200, out)
 }

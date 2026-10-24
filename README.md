@@ -2,19 +2,29 @@
 
 **Receive once. Keep the original. Choose what happens next.**
 
-A self-hosted business inbox for messages and files delivered to a WeCom smart bot. Search your records, download originals, export JSON/CSV, and connect independent processing services. **No AI account or agent framework is required.**
+A self-hosted business inbox for messages and files delivered to a WeCom smart bot or a WeChat customer-service account. Search your records, download originals, export JSON/CSV, and connect independent processing services. **No AI account or agent framework is required.**
 
 [中文说明](README.zh-CN.md) · [API and integrations](docs/api.md) · [Deployment and recovery](docs/deployment.md) · [Implementation and verification](docs/design.md)
 
 New to the project? The Chinese guide provides separate paths for [an existing Bot](README.zh-CN.md#with-bot),
 [trying the inbox without a Bot](README.zh-CN.md#without-bot), and [creating a new Bot](README.zh-CN.md#create-bot).
-These are configurations of the same application. Without a Bot, imported records remain usable, but live WeCom intake and replies are unavailable.
+These are configurations of the same application. Without a Bot or customer-service connection, imported records remain usable, but live intake and replies are unavailable.
 
-> **v0.1.0 release candidate — private acceptance in progress.** Automated regression tests and local browser checks are available. Real-WeCom acceptance has passed for direct chats, group @-mentions, quoted files and media; reconnect behavior and independent first-time setup are still pending. Verified platform limits: voice arrives as transcribed text only, merged chat records carry no content, quotes of expired files carry no original, and each attachment is capped at 50 MB ([acceptance record](docs/design.md#真实平台验收记录2026-10-24)). This is an independent community project, not an official Tencent product. It archives only callbacks delivered to your Bot, not all conversations in an organization or arbitrary personal WeChat chats.
+> **v0.1.0 release candidate — private acceptance in progress.** Automated regression tests and local browser checks are available. Real-WeCom acceptance has passed for direct chats, group @-mentions, quoted files and media; reconnect behavior and independent first-time setup are still pending. Verified smart-bot platform limits: voice arrives as transcribed text only, merged chat records carry no content, quotes of expired files carry no original, and each attachment is capped at 50 MB ([acceptance record](docs/design.md#真实平台验收记录2026-10-24)). This is an independent community project, not an official Tencent product. It archives only records delivered to configured sources, not all conversations in an organization or arbitrary personal WeChat chats. The new customer-service connector has automated protocol coverage; live customer-service acceptance is still pending.
 
 ![WeCom Inbox](docs/assets/inbox-desktop.png)
 
 Web inbox with explicitly synthetic test fixtures; no customer data.
+
+## Receive from ordinary WeChat
+
+Connect an enterprise-managed **WeChat customer-service** account to let users open its official contact link and send records from ordinary WeChat without @-mentions or an AI account. This is a direct customer-service conversation, not access to other WeChat groups.
+
+See the [complete Chinese setup guide](README.zh-CN.md#wechat-customer-service) and [deployment configuration](docs/deployment.md#wechat-customer-service). The standalone `kf.weixin.qq.com` API is a different interface and is not supported by this connector. Use a custom application authorized by WeCom's customer-service configuration, not a smart-bot secret.
+
+Intake supports durable encrypted notifications, per-account cursors, deduplication, original media (including voice), merged-record extraction, scoped queries/Webhooks and optional text replies. Structured cards retain platform-supplied fields; unsupported records remain visibly failed with encrypted raw evidence. Human-servicer records do not trigger automated consumers or replies.
+
+Customer-service replies are limited to 2048 bytes. Tencent restricts replies by session state, a 48-hour window and a five-message allowance following customer input. Receipts default off to conserve that allowance. A successful send API response is shown as **accepted**, not confirmed delivery; later failure events update the result. Live WeChat account acceptance is not yet complete.
 
 ## What it does
 
