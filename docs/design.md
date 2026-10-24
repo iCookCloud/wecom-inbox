@@ -179,6 +179,8 @@ Agent 专有适配需要对方接口说明或最小调用示例；不为此阻�
 | 54 MB zip | 平台会推送，本程序按 `max_file_mb` 上限拒收；文件名因未下载而记为 `file` |
 | 处理结果回复原群（距最后一次 @ 约 2.5 小时） | 平台确认送达；作为普通群消息发出，不引用原消息、不 @ 发送人，回复内容需自行写明对应的人和文件 |
 | 回复中 @ 成员（`<@userid>`、`@userid`、`@显示名`） | 均不生效，原样显示；官方长连接文档的 markdown/template_card 均无 @ 成员字段 |
+| CLI 网关 `message/aibot/sessions/list`（Bot ID/Secret 签名换令牌） | 可用，已接入为 `GET /v1/bots/{id}/sessions`；依赖"可使用权限"授权（约 7 天），无到期时间查询接口 |
+| CLI 网关 `chat/groups/list`、`chat/messages/list` | 错误码 853006"企业不可用"，读群消息仍需会话内容存档 |
 
 修复：超限附件原回执提示"请重新发送"，重发仍会失败。现回执写明上限并提示压缩或拆分（`2f82899`），真机复测通过；
 大小上限集中为 `MaxFileMBLimit` 与 `MaxMessageAttachmentBytes` 常量。
