@@ -9,6 +9,7 @@ Credentials belong in private configuration. Responses never contain Bot secrets
 | `GET /healthz` | Database health only; no records or credentials |
 | `GET /v1/session` | Current administrator/consumer identity; browser CSRF token |
 | `GET /v1/bots` | Authorized configured Bots and connection states |
+| `GET /v1/bots/{id}/sessions` | Administrator-only: the Bot's recent conversations it may message (up to 20, platform order) with name, type and last message time. Uses the WeCom CLI gateway with the Bot ID/secret; requires the "send message" grant in the Bot's 可使用权限, which expires about every 7 days. Upstream failures return 502 with the platform errcode |
 | `GET /v1/stats` | Authorized record and attachment counts |
 | `GET /v1/consumers` | Administrator-only consumer scopes; credentials omitted |
 | `GET /v1/messages` | Cursor-paginated records |

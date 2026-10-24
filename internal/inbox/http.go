@@ -40,6 +40,7 @@ type Server struct {
 	Config    func() Config
 	Assets    fs.FS
 	BotStates func() map[string]string
+	Sessions  func(context.Context, Bot) ([]Session, error)
 	mu        sync.Mutex
 	attempts  map[string]loginAttempt
 }
@@ -63,6 +64,7 @@ func (s *Server) Handler() http.Handler {
 		respond(w, 200, map[string]any{"admin": i.Admin, "consumer_id": i.ID, "csrf": i.CSRF})
 	}))
 	mux.HandleFunc("GET /v1/bots", s.auth(s.bots))
+	mux.HandleFunc("GET /v1/bots/{id}/sessions", s.auth(s.sessions))
 	mux.HandleFunc("GET /v1/stats", s.auth(s.stats))
 	mux.HandleFunc("GET /v1/consumers", s.auth(func(w http.ResponseWriter, r *http.Request) {
 		if !who(r).Admin {
@@ -400,6 +402,29 @@ func (s *Server) retry(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	respond(w, 200, map[string]bool{"queued": true})
+}
+
+// 会话名称涉及组织内部信息，只对管理员开放。
+func (s *Server) sessions(w http.ResponseWriter, r *http.Request) {
+	if !who(r).Admin {
+		fail(w, 403, "forbidden", "administrator access required")
+		return
+	}
+	b, ok := s.Config().Bot(r.PathValue("id"))
+	if !ok || !b.Enabled {
+		fail(w, 404, "not_found", "bot not found or disabled")
+		return
+	}
+	if s.Sessions == nil {
+		fail(w, 501, "unavailable", "session listing is not configured")
+		return
+	}
+	list, err := s.Sessions(r.Context(), b)
+	if err != nil {
+		fail(w, 502, "upstream_error", err.Error())
+		return
+	}
+	respond(w, 200, map[string]any{"sessions": list})
 }
 
 func (s *Server) bots(w http.ResponseWriter, r *http.Request) {

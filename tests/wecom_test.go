@@ -3,6 +3,7 @@ package tests
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
@@ -247,5 +248,42 @@ runpy.run_path(sys.argv[1], run_name="__main__")`
 	results, e = s.Results(ctx, id)
 	if e != nil || results[0].ReplyStatus != "delivered" {
 		t.Fatal("acknowledged reply status not recorded", e)
+	}
+}
+
+func TestBotSessionsUseSignedCLIGatewayForAdministratorsOnly(t *testing.T) {
+	gateway := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var body map[string]any
+		json.NewDecoder(r.Body).Decode(&body)
+		switch r.URL.Path {
+		case "/auth":
+			raw := "test-secret" + "bot-a" + strconv.FormatInt(int64(body["time"].(float64)), 10) + body["nonce"].(string)
+			if body["bot_id"] != "bot-a" || body["signature"] != fmt.Sprintf("%x", sha256.Sum256([]byte(raw))) {
+				json.NewEncoder(w).Encode(map[string]any{"errcode": 40001, "errmsg": "bad signature"})
+				return
+			}
+			json.NewEncoder(w).Encode(map[string]any{"errcode": 0, "token": "cli-token"})
+		case "/cli/message/aibot/sessions/list":
+			if r.Header.Get("Authorization") != "Bearer cli-token" || body["payload"] != "{}" {
+				w.WriteHeader(401)
+				return
+			}
+			result, _ := json.Marshal(map[string]any{"security_notice": "x", "sessions": []map[string]string{{"chat_id": "group-1", "chat_name": "资料群", "chat_type": "group", "last_msg_time": "2026-10-24 15:44:38"}}})
+			wrapped, _ := json.Marshal(map[string]string{"result": string(result)})
+			json.NewEncoder(w).Encode(map[string]any{"errcode": 0, "results_json": string(wrapped)})
+		}
+	}))
+	defer gateway.Close()
+	api := wecom.CLIAPI{HTTP: gateway.Client(), AuthURL: gateway.URL + "/auth", BaseURL: gateway.URL + "/cli"}
+	c := config()
+	c.Consumers = []inbox.Consumer{{ID: "reader", Token: consumerToken, Bots: []string{"bot-a"}}}
+	server := httptest.NewServer((&inbox.Server{Store: store(t), Config: func() inbox.Config { return c }, Sessions: api.Sessions}).Handler())
+	defer server.Close()
+	r, body := request(t, server.Client(), "GET", server.URL+"/v1/bots/bot-a/sessions", adminToken, "")
+	if r.StatusCode != 200 || !strings.Contains(string(body), "资料群") || strings.Contains(string(body), "security_notice") {
+		t.Fatalf("admin sessions: %d %s", r.StatusCode, body)
+	}
+	if r, _ = request(t, server.Client(), "GET", server.URL+"/v1/bots/bot-a/sessions", consumerToken, ""); r.StatusCode != 403 {
+		t.Fatalf("consumer listed sessions: %d", r.StatusCode)
 	}
 }

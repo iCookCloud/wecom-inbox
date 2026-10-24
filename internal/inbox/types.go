@@ -96,3 +96,11 @@ func contains(values []string, value string) bool {
 	}
 	return false
 }
+
+// Session 是机器人最近有消息往来、可主动发送的会话（来自企业微信 CLI 网关）。
+type Session struct {
+	ChatID      string `json:"chat_id"`
+	ChatName    string `json:"chat_name"`
+	ChatType    string `json:"chat_type"`
+	LastMessage string `json:"last_msg_time"`
+}

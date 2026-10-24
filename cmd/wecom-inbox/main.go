@@ -206,7 +206,7 @@ func serve(initial inbox.Config, path string, s *inbox.Store) error {
 	})
 	manager.Reconcile(ctx, initial.Bots)
 	defer manager.Stop()
-	app := &inbox.Server{Store: s, Config: config.get, Assets: web.Assets, BotStates: func() map[string]string {
+	app := &inbox.Server{Store: s, Config: config.get, Assets: web.Assets, Sessions: wecom.NewCLIAPI().Sessions, BotStates: func() map[string]string {
 		out := map[string]string{}
 		for _, b := range manager.Statuses() {
 			out[b.ID] = b.State
