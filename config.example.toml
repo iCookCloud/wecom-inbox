@@ -26,3 +26,22 @@ allow_reply = false
 allow_private_network = false
 # A local HTTP worker requires allow_private_network=true. It permits private destinations.
 # Omit url and secret for a pull-only consumer that queries the HTTP API.
+
+# 微信客服：由企业微信接管的客服账号，可与现有 bots 并行或单独使用。
+# 回调 URL：https://你的域名/callbacks/wechat-kf/customer-service
+[[wechat_kf]]
+id = "customer-service"
+enabled = false
+corp_id = "YOUR_CORP_ID"
+secret = "YOUR_AUTHORIZED_APPLICATION_SECRET"
+token = "YOUR_CALLBACK_TOKEN"
+encoding_aes_key = "YOUR_43_CHARACTER_CALLBACK_AES_KEY"
+
+[[wechat_kf.accounts]]
+open_kfid = "YOUR_OPEN_KFID"
+name = "微信资料收件箱"
+# 平台每次客户主动发消息后允许 48 小时内最多回复 5 条，默认不发归档回执。
+receipt = false
+allowed_customers = ["*"]
+# ["*"] 明确允许所有联系这个客服账号的客户；也可仅填写测试客户 external_userid。
+# consumers.bots 使用来源 ID：kf:YOUR_CORP_ID:YOUR_OPEN_KFID。

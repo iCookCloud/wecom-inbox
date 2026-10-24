@@ -186,6 +186,13 @@ CREATE TABLE IF NOT EXISTS replies (
  id INTEGER PRIMARY KEY AUTOINCREMENT,message_id INTEGER NOT NULL REFERENCES messages(id),result_id INTEGER UNIQUE REFERENCES results(id),
  content TEXT NOT NULL,request_id TEXT NOT NULL DEFAULT '',status TEXT NOT NULL DEFAULT 'pending',
  error TEXT NOT NULL DEFAULT '',created_at TEXT NOT NULL,kind TEXT NOT NULL DEFAULT 'result',next_at TEXT NOT NULL DEFAULT '');
+CREATE TABLE IF NOT EXISTS kf_sync (
+ source_id TEXT PRIMARY KEY,cursor TEXT NOT NULL DEFAULT '',token BLOB,token_at INTEGER NOT NULL DEFAULT 0,
+ generation INTEGER NOT NULL DEFAULT 0,next_at TEXT NOT NULL DEFAULT '',last_success TEXT NOT NULL DEFAULT '',
+ error TEXT NOT NULL DEFAULT '',attempts INTEGER NOT NULL DEFAULT 0);
+CREATE TABLE IF NOT EXISTS kf_outbound (
+ source_id TEXT NOT NULL,msgid TEXT NOT NULL,reply_id INTEGER NOT NULL UNIQUE REFERENCES replies(id),
+ PRIMARY KEY(source_id,msgid));
 `
 
 func (s *Store) Put(ctx context.Context, in Incoming) (int64, bool, error) {
@@ -216,6 +223,11 @@ func (s *Store) Put(ctx context.Context, in Incoming) (int64, bool, error) {
 		return 0, false, err
 	}
 	if n > 0 {
+		if in.Problem != "" {
+			if _, err = tx.ExecContext(ctx, "UPDATE messages SET status='failed',error=? WHERE id=?", in.Problem, id); err != nil {
+				return 0, false, err
+			}
+		}
 		if in.Source == "legacy" {
 			if _, err = tx.ExecContext(ctx, "UPDATE messages SET status='importing' WHERE id=?", id); err != nil {
 				return 0, false, err
@@ -413,6 +425,9 @@ func (s *Store) Finalize(ctx context.Context, id int64, c Config, requestID stri
 		return err
 	}
 	for _, v := range c.Consumers {
+		if m.ChatType == "wechat_kf_event" {
+			continue
+		}
 		if v.URL != "" && contains(v.Bots, m.BotID) {
 			if _, err = tx.ExecContext(ctx, `INSERT OR IGNORE INTO deliveries(id,message_id,consumer_id,next_at,updated_at) VALUES(?,?,?,?,?)`, RandomID(), id, v.ID, now(), now()); err != nil {
 				return err

@@ -1,6 +1,9 @@
 package inbox
 
-import "time"
+import (
+	"encoding/json"
+	"time"
+)
 
 type Attachment struct {
 	ID         string `json:"id"`
@@ -71,17 +74,20 @@ type Result struct {
 }
 
 type MediaSource struct {
-	URL    string `json:"url,omitempty"`
-	AESKey string `json:"aeskey,omitempty"`
-	Name   string `json:"name"`
-	Kind   string `json:"kind"`
+	MediaID string `json:"media_id,omitempty"`
+	URL     string `json:"url,omitempty"`
+	AESKey  string `json:"aeskey,omitempty"`
+	Name    string `json:"name"`
+	Kind    string `json:"kind"`
 }
 
 type Incoming struct {
-	Source    string        `json:"source,omitempty"`
-	Message   Message       `json:"message"`
-	Media     []MediaSource `json:"media"`
-	RequestID string        `json:"request_id,omitempty"`
+	Problem   string          `json:"problem,omitempty"`
+	Raw       json.RawMessage `json:"raw,omitempty"`
+	Source    string          `json:"source,omitempty"`
+	Message   Message         `json:"message"`
+	Media     []MediaSource   `json:"media"`
+	RequestID string          `json:"request_id,omitempty"`
 }
 
 const timestampLayout = "2006-01-02T15:04:05.000000000Z"

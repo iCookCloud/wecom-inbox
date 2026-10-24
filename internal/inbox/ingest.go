@@ -427,9 +427,10 @@ func (s *Store) RecoverAttachment(ctx context.Context, a Attachment) (bool, erro
 }
 
 type Ingestor struct {
-	Store      *Store
-	Config     func() Config
-	Downloader Downloader
+	Store         *Store
+	Config        func() Config
+	Downloader    Downloader
+	DownloadMedia func(context.Context, Message, MediaSource, int64) ([]byte, string, error)
 }
 
 func (i *Ingestor) Accept(ctx context.Context, botID, requestID string, body []byte) (int64, bool, error) {
@@ -508,6 +509,8 @@ func (i *Ingestor) ProcessOne(ctx context.Context) (bool, error) {
 		var name string
 		if d.MaxBytes <= 0 {
 			err = ErrMessageAttachmentsTooLarge
+		} else if in.Source == "wechat_kf" && i.DownloadMedia != nil {
+			data, name, err = i.DownloadMedia(ctx, m, in.Media[n], d.MaxBytes)
 		} else {
 			data, name, err = d.Download(ctx, in.Media[n])
 		}
