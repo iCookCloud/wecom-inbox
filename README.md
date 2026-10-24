@@ -6,6 +6,10 @@ A self-hosted business inbox for messages and files delivered to a WeCom smart b
 
 [中文说明](README.zh-CN.md) · [API and integrations](docs/api.md) · [Deployment and recovery](docs/deployment.md) · [Implementation and verification](docs/design.md)
 
+New to the project? The Chinese guide provides separate paths for [an existing Bot](README.zh-CN.md#with-bot),
+[trying the inbox without a Bot](README.zh-CN.md#without-bot), and [creating a new Bot](README.zh-CN.md#create-bot).
+These are configurations of the same application. Without a Bot, imported records remain usable, but live WeCom intake and replies are unavailable.
+
 > **v0.1.0 release candidate — private acceptance in progress.** Automated regression tests and local browser checks are available; current real-WeCom message/media acceptance is pending. This is an independent community project, not an official Tencent product. It archives only callbacks delivered to your Bot, not all conversations in an organization or arbitrary personal WeChat chats.
 
 ![WeCom Inbox](docs/assets/inbox-desktop.png)
