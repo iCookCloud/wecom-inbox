@@ -168,6 +168,16 @@ type Downloader struct {
 	MaxBytes     int64
 }
 
+// 超限错误的文本会写入 attachments.error，回执据此区分"重发无用"与"可重发"。
+var (
+	ErrAttachmentTooLarge         = errors.New("attachment exceeds size limit")
+	ErrMessageAttachmentsTooLarge = errors.New("message attachments exceed total size limit")
+)
+
+func isSizeLimitError(message string) bool {
+	return message == ErrAttachmentTooLarge.Error() || message == ErrMessageAttachmentsTooLarge.Error()
+}
+
 func (d Downloader) Download(ctx context.Context, source MediaSource) ([]byte, string, error) {
 	if err := ValidateURL(source.URL, d.AllowPrivate); err != nil {
 		return nil, "", err
@@ -178,7 +188,7 @@ func (d Downloader) Download(ctx context.Context, source MediaSource) ([]byte, s
 	}
 	max := d.MaxBytes
 	if max <= 0 {
-		max = 50 << 20
+		max = MaxFileMBLimit << 20
 	}
 	var last error
 	for attempt := 0; attempt < 3; attempt++ {
@@ -204,7 +214,7 @@ func (d Downloader) Download(ctx context.Context, source MediaSource) ([]byte, s
 				last = errors.New("media body read failed")
 			} else {
 				if int64(len(data)) > max+32 {
-					return nil, "", errors.New("attachment exceeds size limit")
+					return nil, "", ErrAttachmentTooLarge
 				}
 				if source.AESKey != "" {
 					data, e = DecryptMedia(data, source.AESKey)
@@ -213,7 +223,7 @@ func (d Downloader) Download(ctx context.Context, source MediaSource) ([]byte, s
 					}
 				}
 				if int64(len(data)) > max {
-					return nil, "", errors.New("attachment exceeds size limit")
+					return nil, "", ErrAttachmentTooLarge
 				}
 				name := source.Name
 				if _, params, e := mime.ParseMediaType(resp.Header.Get("Content-Disposition")); e == nil && params["filename"] != "" {
@@ -379,7 +389,7 @@ func (s *Store) RecoverAttachment(ctx context.Context, a Attachment) (bool, erro
 	var saved Attachment
 	e = json.NewDecoder(io.LimitReader(f, 16384)).Decode(&saved)
 	f.Close()
-	if e != nil || saved.ID != a.ID || saved.MessageID != a.MessageID || saved.Size < 0 || saved.Size > 50<<20 {
+	if e != nil || saved.ID != a.ID || saved.MessageID != a.MessageID || saved.Size < 0 || saved.Size > MaxFileMBLimit<<20 {
 		return false, errors.New("invalid attachment recovery manifest")
 	}
 	saved.StorageKey = key
@@ -491,13 +501,13 @@ func (i *Ingestor) ProcessOne(ctx context.Context) (bool, error) {
 		}
 		d := i.Downloader
 		d.MaxBytes = i.Config().MaxFileMB << 20
-		if remaining := (100 << 20) - total; remaining < d.MaxBytes {
+		if remaining := MaxMessageAttachmentBytes - total; remaining < d.MaxBytes {
 			d.MaxBytes = remaining
 		}
 		var data []byte
 		var name string
 		if d.MaxBytes <= 0 {
-			err = errors.New("message attachments exceed 100 MiB")
+			err = ErrMessageAttachmentsTooLarge
 		} else {
 			data, name, err = d.Download(ctx, in.Media[n])
 		}

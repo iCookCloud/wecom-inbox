@@ -166,7 +166,7 @@ func initialize(path string) error {
 data_dir = "./data"
 listen = "127.0.0.1:8787"
 admin_token = "%s%s"
-max_file_mb = 50
+max_file_mb = %d
 
 # Add your own bot; explicitly authorize users or chats.
 # [[bots]]
@@ -177,7 +177,7 @@ max_file_mb = 50
 # receipt = true
 # allowed_users = ["YOUR_WECOM_USER_ID"]
 # allowed_chats = []
-`, inbox.RandomID(), inbox.RandomID())
+`, inbox.RandomID(), inbox.RandomID(), inbox.MaxFileMBLimit)
 	if e == nil {
 		e = f.Sync()
 	}

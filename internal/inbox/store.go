@@ -389,10 +389,13 @@ func (s *Store) Finalize(ctx context.Context, id int64, c Config, requestID stri
 		return err
 	}
 	status := "ready"
-	fail := 0
+	fail, oversize := 0, 0
 	for _, a := range m.Attachments {
 		if a.Status != "ready" {
 			fail++
+			if isSizeLimitError(a.Error) {
+				oversize++
+			}
 		}
 	}
 	if fail > 0 {
@@ -417,15 +420,30 @@ func (s *Store) Finalize(ctx context.Context, id int64, c Config, requestID stri
 		}
 	}
 	if b, ok := c.Bot(m.BotID); ok && b.Receipt && requestID != "" {
-		text := "已归档 / Archived"
-		if fail > 0 {
-			text = "消息已保存，部分附件接收失败，请重新发送 / Attachment failed; please resend"
-		}
+		text := receiptText(fail, oversize, c.MaxFileMB)
 		if _, err = tx.ExecContext(ctx, `INSERT INTO replies(message_id,content,request_id,created_at,kind) VALUES(?,?,?,?,'receipt')`, id, text, requestID, now()); err != nil {
 			return err
 		}
 	}
 	return tx.Commit()
+}
+
+// 超限附件重发仍会失败，回执须直接说明上限，不能只提示重新发送。
+func receiptText(fail, oversize int, maxFileMB int64) string {
+	limits := fmt.Sprintf("单个文件 %d MB、单条消息合计 %d MB", maxFileMB, MaxMessageAttachmentBytes>>20)
+	limitsEN := fmt.Sprintf("%d MB per file, %d MB per message", maxFileMB, MaxMessageAttachmentBytes>>20)
+	switch {
+	case fail == 0:
+		return "已归档 / Archived"
+	case oversize == fail:
+		return "消息已保存，附件超过大小上限（" + limits + "）未能保存，重发也无法接收，请压缩或拆分后再发 / " +
+			"Message saved; attachment exceeds the size limit (" + limitsEN + ") and was not saved. Resending will not help; compress or split it."
+	case oversize > 0:
+		return "消息已保存；部分附件超过大小上限（" + limits + "）未能保存，其余失败的附件请重新发送 / " +
+			"Message saved; some attachments exceed the size limit (" + limitsEN + "), others failed; please resend those."
+	default:
+		return "消息已保存，部分附件接收失败，请重新发送 / Attachment failed; please resend"
+	}
 }
 
 // 备份数据库使用 SQLite 一致性快照；附件与密钥由停机后的 CLI 备份一并复制。

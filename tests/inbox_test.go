@@ -729,3 +729,29 @@ func TestReleaseReviewReimportMissingAttachmentReportsIncomplete(t *testing.T) {
 		t.Fatal("reimport reports no missing attachment while retained record is still incomplete")
 	}
 }
+
+func TestOversizeAttachmentReceiptNamesLimitInsteadOfResend(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Write(bytes.Repeat([]byte("x"), 2<<20))
+	}))
+	defer server.Close()
+	s := store(t)
+	c := config()
+	c.Bots[0].Receipt = true
+	ing := inbox.Ingestor{Store: s, Config: func() inbox.Config { return c }, Downloader: inbox.Downloader{AllowPrivate: true}}
+	body := []byte(`{"msgid":"big-file","chattype":"single","from":{"userid":"user-a"},"msgtype":"file","file":{"url":"` + server.URL + `/big"}}`)
+	id, _, e := ing.Accept(ctx, "bot-a", "request", body)
+	if e != nil {
+		t.Fatal(e)
+	}
+	if _, e = ing.ProcessOne(ctx); e != nil {
+		t.Fatal(e)
+	}
+	var receipt string
+	if e = s.DB.QueryRow("SELECT content FROM replies WHERE message_id=?", id).Scan(&receipt); e != nil {
+		t.Fatal(e)
+	}
+	if !strings.Contains(receipt, "单个文件 1 MB") || strings.Contains(receipt, "请重新发送") {
+		t.Fatalf("oversize receipt does not state the limit: %q", receipt)
+	}
+}

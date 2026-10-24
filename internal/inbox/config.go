@@ -32,6 +32,14 @@ type Consumer struct {
 	AllowPrivateNetwork bool     `toml:"allow_private_network" json:"-"`
 }
 
+// 附件整体读入内存后解密，大小上限用于约束内存占用；放宽前需先改为流式下载与解密。
+const (
+	// MaxFileMBLimit 是单个附件的最大上限，也是 max_file_mb 的默认值（MB）。
+	MaxFileMBLimit = 50
+	// MaxMessageAttachmentBytes 是单条消息全部附件的合计上限。
+	MaxMessageAttachmentBytes int64 = 100 << 20
+)
+
 type Config struct {
 	DataDir    string     `toml:"data_dir"`
 	Listen     string     `toml:"listen"`
@@ -43,7 +51,7 @@ type Config struct {
 }
 
 func LoadConfig(path string) (Config, error) {
-	c := Config{DataDir: "./data", Listen: "127.0.0.1:8787", MaxFileMB: 50}
+	c := Config{DataDir: "./data", Listen: "127.0.0.1:8787", MaxFileMB: MaxFileMBLimit}
 	if _, err := toml.DecodeFile(path, &c); err != nil {
 		return c, fmt.Errorf("load config: %w", err)
 	}
@@ -67,8 +75,8 @@ func (c Config) Validate() error {
 	if _, _, err := net.SplitHostPort(c.Listen); err != nil {
 		return errors.New("listen must be host:port")
 	}
-	if c.MaxFileMB < 1 || c.MaxFileMB > 50 {
-		return errors.New("max_file_mb must be 1..50")
+	if c.MaxFileMB < 1 || c.MaxFileMB > MaxFileMBLimit {
+		return fmt.Errorf("max_file_mb must be 1..%d", MaxFileMBLimit)
 	}
 	if c.PublicURL != "" {
 		u, e := url.Parse(c.PublicURL)

@@ -137,8 +137,8 @@ func (s *Store) ImportJSONL(ctx context.Context, input io.Reader, mediaRoot stri
 				if statErr != nil || !info.Mode().IsRegular() {
 					openErr = errors.New("source is not a regular file")
 				} else {
-					contents, openErr = io.ReadAll(io.LimitReader(f, (50<<20)+1))
-					if len(contents) > 50<<20 {
+					contents, openErr = io.ReadAll(io.LimitReader(f, (MaxFileMBLimit<<20)+1))
+					if len(contents) > MaxFileMBLimit<<20 {
 						openErr = errors.New("source exceeds size limit")
 					}
 				}
