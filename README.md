@@ -10,7 +10,7 @@ New to the project? The Chinese guide provides separate paths for [an existing B
 [trying the inbox without a Bot](README.zh-CN.md#without-bot), and [creating a new Bot](README.zh-CN.md#create-bot).
 These are configurations of the same application. Without a Bot or customer-service connection, imported records remain usable, but live intake and replies are unavailable.
 
-> **v0.1.0 release candidate — private acceptance in progress.** Automated regression tests and local browser checks are available. Real-WeCom acceptance has passed for direct chats, group @-mentions, quoted files and media; reconnect behavior and independent first-time setup are still pending. Verified smart-bot platform limits: voice arrives as transcribed text only, merged chat records carry no content, quotes of expired files carry no original, and each attachment is capped at 50 MB ([acceptance record](docs/design.md#真实平台验收记录2026-10-24)). This is an independent community project, not an official Tencent product. It archives only records delivered to configured sources, not all conversations in an organization or arbitrary personal WeChat chats. The new customer-service connector has automated protocol coverage; live customer-service acceptance is still pending.
+> **v0.1.0 — initial open-source release.** This is an independent community project, not an official Tencent product. Automated regression checks and Linux/macOS build checks are available. Real WeCom bot acceptance covers direct chats, group @-mentions, quoted files and media. Live customer-service acceptance, reconnect checks and independent first-time onboarding remain pending; see [verification scope](docs/design.md). Publishing this version does not turn unrun checks into passed checks.
 
 ![WeCom Inbox](docs/assets/inbox-desktop.png)
 
@@ -28,7 +28,7 @@ Customer-service replies are limited to 2048 bytes. Tencent restricts replies by
 
 ## What it does
 
-- Multiple Bots with explicit sender/chat allowlists and independent connections.
+- Multiple WeCom Bots and WeChat customer-service accounts with explicit access scopes and independent intake.
 - Durable intake before attachment download; encrypted temporary download credentials.
 - Original attachments with SHA-256 integrity checks, separate records for multiple and quoted files, and crash recovery.
 - English/Chinese web inbox, filename/body search, filters, stable pagination, downloads and JSON/CSV export.
@@ -38,24 +38,48 @@ Customer-service replies are limited to 2048 bytes. Tencent restricts replies by
 
 The gateway stores the records; your scripts, document tools or agents decide how to process them. An acknowledged webhook and a completed business task are separate states.
 
-## Quick start
+## Quick start: download and run
 
-Build with **Go 1.26.4 or later** on Linux or macOS:
+**No Go installation is needed when using a prebuilt executable.** Download the file matching your machine from [v0.1.0 releases](https://github.com/iCookCloud/wecom-inbox/releases/tag/v0.1.0), along with `SHA256SUMS`:
+
+| Machine | Download |
+|---|---|
+| Linux x86-64 / amd64 | [wecom-inbox-linux-amd64](https://github.com/iCookCloud/wecom-inbox/releases/download/v0.1.0/wecom-inbox-linux-amd64) |
+| Linux ARM64 | [wecom-inbox-linux-arm64](https://github.com/iCookCloud/wecom-inbox/releases/download/v0.1.0/wecom-inbox-linux-arm64) |
+| macOS Apple Silicon (M-series) | [wecom-inbox-darwin-arm64](https://github.com/iCookCloud/wecom-inbox/releases/download/v0.1.0/wecom-inbox-darwin-arm64) |
+
+Keep the executable in a dedicated directory, compare its SHA-256 with the [published checksums](https://github.com/iCookCloud/wecom-inbox/releases/download/v0.1.0/SHA256SUMS), then run the following. This example uses Linux amd64; substitute your downloaded filename on other machines.
+
+```sh
+chmod +x ./wecom-inbox-linux-amd64
+./wecom-inbox-linux-amd64 init
+./wecom-inbox-linux-amd64 check
+./wecom-inbox-linux-amd64 serve
+```
+
+Open **http://127.0.0.1:8787** and sign in using `admin_token` from the newly generated private `config.toml`. `init` refuses to overwrite existing configuration. The initial inbox is empty and makes no Bot or customer-service connections.
+
+Choose an intake path:
+
+- **Ordinary WeChat:** follow [WeChat customer-service setup](README.zh-CN.md#wechat-customer-service). It needs an authorized enterprise-managed customer-service account and an HTTPS callback; no smart bot is required.
+- **WeCom internal chats:** follow [existing-Bot setup](README.zh-CN.md#with-bot), or [create a Bot](README.zh-CN.md#create-bot). Use an explicit user/chat allowlist and only one gateway connection per Bot.
+- **No account yet:** browse the empty inbox or use the [offline demo](README.zh-CN.md#without-bot). Demo fixtures are in the source repository.
+
+Copy relevant settings from [config.example.toml](config.example.toml) into your private config while keeping the generated random admin token. Valid edits reload automatically; changing the data directory or listening address requires restart. See [deployment](docs/deployment.md) for systemd, HTTPS, the optional checksum-verifying installer and backups. Windows and Intel Mac executables are not distributed in this release.
+
+### Build from source
+
+Contributors can build with **Go 1.26.4 or later**:
 
 ```sh
 git clone https://github.com/iCookCloud/wecom-inbox.git
 cd wecom-inbox
 make build
 ./wecom-inbox init
-./wecom-inbox check
 ./wecom-inbox serve
 ```
 
-Open **http://127.0.0.1:8787** and sign in using `admin_token` in the newly generated private `config.toml`. `init` refuses to overwrite an existing file. An empty inbox works without any Bot or model configured.
-
-Add your Bot to `config.toml` using the settings in [config.example.toml](config.example.toml). Keep the generated random admin token. Configure `id`, `secret`, `enabled = true`, and explicit `allowed_users` or `allowed_chats`. A valid configuration change reloads automatically; changes to the data directory or listening address require a restart.
-
-Use a dedicated test Bot for the first run. A Bot permits only one active connection: do not run another gateway for the same Bot. In groups, follow the platform's mention/quoted-message trigger rules. Platform voice callbacks may provide a transcript without an audio file.
+The remaining command examples use the locally built name `wecom-inbox`; substitute the downloaded executable's name when using a prebuilt release.
 
 ## Try it without an AI or WeCom account
 
@@ -84,7 +108,7 @@ The [standard-library Python example](examples/http-consumer/consumer.py) verifi
 
 ## Run and maintain
 
-- `config.toml`: Bot secrets and consumer configuration; private file, never committed.
+- `config.toml`: Bot/customer-service credentials and consumer configuration; private file, never committed.
 - `data/inbox.db`: archive, pending work, delivery state and results.
 - `data/encryption.key`: key for pending media credentials; back it up with the database.
 - `data/files/`: original file bytes and recovery manifests; not automatically deleted.
