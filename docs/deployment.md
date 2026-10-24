@@ -2,7 +2,7 @@
 
 ## Installation
 
-Build with `make build`, or download the binary and `SHA256SUMS` from a published release. Linux amd64/arm64 and macOS arm64 are build targets. macOS is cross-compiled but requires separate real-host acceptance; Windows is not supported in this version.
+Build with `make build`, or download the binary and `SHA256SUMS` from a published release. Linux amd64/arm64 and macOS arm64 are build targets. Native CLI installation, local HTTP startup, Go/race tests and backup/restore have passed on a macOS 15 arm64 runner. Real WeCom acceptance and first-time human desktop onboarding remain separate gates; Windows is not supported in this version.
 
 `install.sh <binary> <SHA256SUMS>` verifies the selected asset and installs it into `~/.local/bin`. `INBOX_INSTALL_DIR` selects another directory. It refuses to overwrite an existing executable; keep old releases when planning upgrades.
 
