@@ -6,7 +6,7 @@
 
 [English](README.md) · [接口说明](docs/api.md) · [部署与恢复](docs/deployment.md) · [实施及验证状态](docs/design.md)
 
-> 当前是 v0.1.0 候选版，保持私有验收。自动化回归和本地浏览器检查已有覆盖；真实企业微信机器人单聊、群聊 @、引用文件与媒体收件已验收，断线重连与真人独立上手仍待完成。新增微信客服接入已完成协议模拟和自动化测试，真实微信客服账号收发尚待验收。本项目由社区独立维护，不属于腾讯官方产品。
+> **v0.1.0：首个公开开源版本。** 本项目由社区独立维护，不属于腾讯官方产品。已有自动化回归、Linux/macOS 构建和企业微信机器人核心收件的真机记录。微信客服真实账号收发、断线重连及真人独立上手仍待验证，详见[验证范围](docs/design.md)。未执行的检查保持待验证状态。
 
 ![WeCom Inbox](docs/assets/inbox-desktop.png)
 
@@ -234,22 +234,44 @@ allow_reply = true
 企业微信内的账号验证需要本人完成；软件部署、配置检查、收件与附件核对由部署人员处理。
 上述创建机器人入口另参考[腾讯官方指南](https://intl.cloud.tencent.com/zh/document/product/1316/84454)。
 
-## 安装程序（两种方式共用）
+## 安装程序（所有收件方式共用）
 
-需要 Linux/macOS 和 Go 1.26.4 或更新版本：
+### 推荐：下载安装包，不用安装 Go
+
+打开 [v0.1.0 下载页](https://github.com/iCookCloud/wecom-inbox/releases/tag/v0.1.0)，按运行软件的电脑或服务器选择：
+
+| 运行环境 | 下载文件 |
+|---|---|
+| Linux x86-64 / amd64 服务器 | [wecom-inbox-linux-amd64](https://github.com/iCookCloud/wecom-inbox/releases/download/v0.1.0/wecom-inbox-linux-amd64) |
+| Linux ARM64 服务器 | [wecom-inbox-linux-arm64](https://github.com/iCookCloud/wecom-inbox/releases/download/v0.1.0/wecom-inbox-linux-arm64) |
+| Apple Silicon（M 系列）Mac | [wecom-inbox-darwin-arm64](https://github.com/iCookCloud/wecom-inbox/releases/download/v0.1.0/wecom-inbox-darwin-arm64) |
+
+同时下载 [SHA256SUMS 校验文件](https://github.com/iCookCloud/wecom-inbox/releases/download/v0.1.0/SHA256SUMS)，核对下载文件的 SHA-256。把程序放在单独目录中，再在这个目录启动。下面以 Linux x64 为例；Mac 或 ARM 服务器请将文件名替换成自己下载的那个：
+
+```sh
+chmod +x ./wecom-inbox-linux-amd64
+./wecom-inbox-linux-amd64 init
+./wecom-inbox-linux-amd64 check
+./wecom-inbox-linux-amd64 serve
+```
+
+浏览器打开 `http://127.0.0.1:8787`，用新生成的私有 `config.toml` 里的 `admin_token` 登录。初始化不会覆盖已有配置，初始页面是空收件箱，不会自动连接任何账号。
+
+接着选择 [普通微信使用微信客服](#wechat-customer-service)、[已有企业微信机器人](#with-bot) 或 [无账号离线体验](#without-bot)。服务器常驻运行、HTTPS、备份恢复和可选安装器见[部署说明](docs/deployment.md)。本版不提供 Windows 和 Intel Mac 安装包。
+
+### 开发者：从源码构建
+
+需要 Go 1.26.4 或更新版本：
 
 ```sh
 git clone https://github.com/iCookCloud/wecom-inbox.git
 cd wecom-inbox
 make build
 ./wecom-inbox init
-./wecom-inbox check
 ./wecom-inbox serve
 ```
 
-打开 `http://127.0.0.1:8787`，使用新生成的私有 `config.toml` 中的 `admin_token` 登录。初始化不会覆盖已有文件。
-
-上面的命令先启动空收件箱，没有配置机器人时不会连接企业微信。需要接入真实消息时，再按下面的“已有机器人”说明配置。
+文档其余示例使用源码构建后的名称 `wecom-inbox`。直接下载程序的使用者，把命令中的程序名替换成下载文件名即可；无需重复构建。离线样例位于源码仓库的 `tests/fixtures/legacy/`。
 
 <a id="with-bot"></a>
 
